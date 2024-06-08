@@ -7,39 +7,44 @@ import preprocesamiento
 import os
 import tensorflow as tf
 import csv
+import wfdb
 
 app=Flask(__name__)
 CORS(app)
 
-UPLOAD_FOLDER = './files'
+UPLOAD_FOLDER = './files/'
 
-# Configurar la carpeta de subida en la aplicación
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 @app.route('/',methods=['POST'])
 def index():
-    filename = upload_data(request.files['file'])
+    filename1 = upload_data(request.files['file1'])
     filename2 = upload_data(request.files['file2'])
     filename3 = upload_data(request.files['file3'])
-    # preprocesamiento.inicio()
 
-    return jsonify({"message": "Archivos recibidos", "fileName1": filename, "fileName2": filename2, "fileName3": filename3})
-    # return f'The files {filename} uploaded successfully', 200
-
+    return jsonify({"filename": filename1})
 
 def upload_data(file):
-
     if file.filename == '':
-        return 'No selected file', 400
+        return 'No hay archivo selecionado', 400
+        
+    print("File: ", file.filename)
     
-    print("prueba de que esta en el backend")
-    print("el nombre es",file.filename)
-    # Guardar el archivo en la carpeta de subidas
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
-    print("ruta: ", file_path)
-    file.save(file_path)
-    return file.filename
     
+    print("Path: ", file_path)
+    
+    file.save(file_path)
+    
+    return file.filename.split('.')[0]
+
+@app.route('/ecg/<filename>', methods=['GET'])
+def get_ecg(filename):
+    record = wfdb.rdrecord(f'./files/{filename}')
+    
+    ecg_data = record.p_signal[:, 0].tolist()
+    
+    return jsonify(ecg_data)
 
 @app.route('/predict', methods=['POST'])
 def fit():
@@ -48,7 +53,7 @@ def fit():
     file_names = data['fileNames']
     register_name = file_names[1].split('.')[0]
     print("NOMBRE DEL ARCHIVO",register_name)
-    dts, etq =preprocesamiento.inicio( file_names[1].split('.')[0])
+    dts, etq = preprocesamiento.inicio( file_names[1].split('.')[0])
     X_new = np.loadtxt(f"./files/datos-{register_name}.dat")
 
     # Verificar el tamaño del array
@@ -73,7 +78,7 @@ def fit():
     
     np.savetxt(f'./files/etiquetas-{register_name}.dat',predicted_classes)
 
-# Mostrar las predicciones
+    # Mostrar las predicciones
     print("Tamaño:", predicted_classes.size)
     cont = 0
     for i in predicted_classes:
@@ -90,10 +95,8 @@ def fit():
         writer = csv.writer(file)
         writer.writerows(predicted_classes)
     
-
     # return jsonify({"response": "la respuesta es:"})
     return jsonify({"message": "Archivos recibidos", "files": file_names})
-
 
 if __name__ == '__main__':
     app.run(debug=True, port=5003)
